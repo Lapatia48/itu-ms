@@ -1,0 +1,108 @@
+/* Socle visuel ITU Motor Society : palette « Marine & Rouge », tiree du logo.
+
+   Le logo porte deux couleurs et une seule surface : un marine profond
+   (#0E3449) et un rouge franc (#D51816) sur blanc. La page reste blanche ; le
+   marine est l'encre de la marque et le rouge un pigment qu'on dose.
+     - --brand (#0E3449) : action principale, lien, element courant, panneau
+       vif. Texte blanc dessus a 12,9:1 ;
+     - --brand-vif (#D51816), le rouge du logo : GRAPHISMES seulement (bandes,
+       filet de l'element actif, serie de graphique). 4,1:1 sur blanc, jamais
+       pour un texte, jamais pour un bouton ;
+     - --brand-soft / --brand-pale : surfaces douces (menu actif, tuiles).
+   Le blanc pur est reserve aux cartes, qui se detachent par une ombre douce.
+   --danger (#9c1c13) est plus sombre que le rouge de marque : un refus
+   s'ecrit, il ne se devine pas a la teinte. */
+:root {
+  /* Marque */
+  --brand-vif: #d51816;     /* rouge du logo : graphismes seulement */
+  --brand: #0e3449;         /* action principale, liens, element courant */
+  --brand-dark: #0a2637;    /* survol, texte sur --brand-soft (13,8:1) */
+  --brand-soft: #e6edf2;
+  --brand-pale: #f1f5f8;    /* teinte de surface claire (pied de page, tuile) */
+
+  /* ---------- Le panneau vif : LA surface marine d'une page ------------------
+     Un seul par page (aparte de connexion, recapitulatif de commande, panneau
+     vedette). Marine franc, jamais noir : le point le plus clair (#11405a)
+     tient un texte blanc a 10,3:1 ; texte secondaire en blanc a 90 %. */
+  --vif-fond: linear-gradient(150deg, #11405a 0%, #0e3449 55%, #092534 100%);
+  --vif-lueur: radial-gradient(60% 70% at 100% 0%, rgba(120, 190, 225, 0.2) 0%, rgba(120, 190, 225, 0) 70%);
+  --vif-arete: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --vif-texte-2: rgba(255, 255, 255, 0.9);
+  /* L'ombre d'un panneau marine est marine : elle le decolle de la page. */
+  --shadow-vif: 0 2px 4px rgba(9, 37, 52, 0.14), 0 18px 36px -14px rgba(9, 37, 52, 0.45);
+  --shadow-card: 0 1px 2px rgba(14, 32, 44, 0.04), 0 6px 18px -8px rgba(14, 40, 60, 0.14);
+
+  /* Encre : gris a peine teintes de bleu */
+  --ink-900: #11191f;
+  --ink-800: #1b252d;
+  --ink-700: #2a353e;
+  --ink-600: #44515b;
+  --ink-500: #5c6974;
+  --ink-400: #87939d;
+  --ink-300: #b4bec6;
+  --ink-200: #d9e0e6;
+  --ink-100: #e7ecf0;
+  --ink-050: #eff3f6;
+  --ink-000: #f6f9fb;
+  --white: #ffffff;
+
+  /* Semantique */
+  --ok: #0f6e2a;
+  --ok-soft: #e7f5e9;
+  --warn: #a15c07;
+  --warn-soft: #fdf3e1;
+  --danger: #9c1c13;
+  --danger-soft: #fdecea;
+  --info: #1d5c8f;
+  --info-soft: #e8f0f7;
+  --neutral-soft: var(--ink-100);
+
+  /* Surfaces */
+  --bg: var(--ink-000);
+  --surface: var(--white);
+  --surface-alt: var(--ink-050);
+  --border: var(--ink-200);
+  --border-strong: var(--ink-300);
+
+  /* Texte */
+  --text: var(--ink-900);
+  --text-muted: var(--ink-500);
+  --text-faint: var(--ink-400);
+  --text-invert: var(--white);
+
+  /* ---------- Les bandes du logo ---------------------------------------------
+     Quatre bandes obliques, reprises de la coupe du S : signature discrete
+     posee en calque de fond dans un coin. Blanc sur les panneaux vifs, rouge
+     sur le pied de page. L'opacite est dans le dessin : un calque de fond n'a
+     pas d'opacite propre. */
+  --bandes-clair: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='68' height='24' viewBox='0 0 68 24'%3E%3Cg fill='%23ffffff' fill-opacity='.14'%3E%3Cpath d='M0 24 L9 0 L17 0 L8 24 Z'/%3E%3Cpath d='M17 24 L26 0 L34 0 L25 24 Z'/%3E%3Cpath d='M34 24 L43 0 L51 0 L42 24 Z'/%3E%3Cpath d='M51 24 L60 0 L68 0 L59 24 Z'/%3E%3C/g%3E%3C/svg%3E");
+  --bandes-rouge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='68' height='24' viewBox='0 0 68 24'%3E%3Cg fill='%23d51816' fill-opacity='.16'%3E%3Cpath d='M0 24 L9 0 L17 0 L8 24 Z'/%3E%3Cpath d='M17 24 L26 0 L34 0 L25 24 Z'/%3E%3Cpath d='M34 24 L43 0 L51 0 L42 24 Z'/%3E%3Cpath d='M51 24 L60 0 L68 0 L59 24 Z'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* ---------- Le verre : seulement s'il y a un arriere-plan a flouter ------- */
+  --verre-clair: rgba(246, 249, 251, 0.78);
+  --verre-flou: saturate(1.7) blur(20px);
+
+  /* Geometrie : des angles nettement plus doux qu'un outil de gestion */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --topbar-h: 64px;
+
+  /* Elevation : ombres teintees marine, jamais du noir pose sur la couleur */
+  --shadow-sm: 0 1px 2px rgba(10, 35, 50, 0.05);
+  --shadow-md: 0 2px 4px rgba(10, 35, 50, 0.05), 0 10px 24px -10px rgba(10, 35, 50, 0.18);
+  --shadow-lg: 0 4px 8px rgba(10, 35, 50, 0.06), 0 28px 64px -20px rgba(10, 35, 50, 0.3);
+  --shadow-tile: 0 1px 2px rgba(10, 35, 50, 0.04), 0 12px 28px -14px rgba(10, 35, 50, 0.2);
+
+  /* Typographie */
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SF Mono", monospace;
+  --fs-xs: 11.5px;
+  --fs-sm: 13px;
+  --fs-md: 14.5px;
+  --fs-lg: 16.5px;
+  --fs-xl: 21px;
+  --fs-2xl: 27px;
+  --fs-3xl: 34px;
+}

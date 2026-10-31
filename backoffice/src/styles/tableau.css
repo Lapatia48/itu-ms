@@ -1,0 +1,678 @@
+/* ==========================================================================
+   Tableau de bord
+   ========================================================================== */
+
+/* Palette des series : les deux couleurs du logo, et elles seules.
+
+   Une couleur designe toujours la meme chose sur tout l'ecran : le marine du
+   logo pour ce qui est encaisse, le rouge du logo pour ce qui reste du. Les
+   deux tiennent 3:1 sur le blanc des cartes et restent distinctes pour un oeil
+   daltonien ; ne pas en ajouter une troisieme sans repasser le validateur. */
+.tdb {
+  --serie-entrees: #0e3449;
+  --serie-sorties: #d51816;
+}
+
+/* Rechargement : la page garde son cadre, estompee, sans squelette ni saut. */
+.tdb__corps { transition: opacity 0.18s ease; }
+.tdb__corps.is-rechargement { opacity: 0.55; }
+
+.tdb .filtres-actifs--nue { margin: -6px 0 14px; padding: 0; }
+
+.tdb__pied {
+  margin-top: 12px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  text-align: right;
+}
+
+/* ---------- Choix segmente ---------- */
+
+.segments {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.segments__bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.segments__bouton:hover { background: var(--brand-soft); color: var(--brand-dark); }
+/* Jeton marine franc, comme la page courante de la pagination. */
+.segments__bouton.is-actif { background: var(--brand); color: var(--white); }
+.segments__bouton.is-actif:hover { background: var(--brand-dark); color: var(--white); }
+
+/* Sur le panneau vif : blanc translucide, l'actif en blanc plein. */
+.segments--sombre {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+}
+.segments--sombre .segments__bouton { color: var(--vif-texte-2); }
+.segments--sombre .segments__bouton:hover { background: rgba(255, 255, 255, 0.18); color: var(--white); }
+.segments--sombre .segments__bouton.is-actif {
+  background: var(--white);
+  color: var(--brand-dark);
+}
+.segments--sombre .segments__bouton:focus-visible { outline-color: var(--white); }
+
+/* ---------- Tuiles d'indicateurs ---------- */
+
+.tdb-tuiles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1380px) { .tdb-tuiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .tdb-tuiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 440px) { .tdb-tuiles { grid-template-columns: minmax(0, 1fr); } }
+
+.tuile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 13px 15px 11px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+.tuile:hover { border-color: rgba(14, 52, 73, 0.3); box-shadow: var(--shadow-md); }
+.tuile:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+.tuile__tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tuile__libelle {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tuile__ouvrir { flex: 0 0 auto; color: var(--brand); opacity: 0; transition: opacity 0.14s ease; }
+.tuile:hover .tuile__ouvrir,
+.tuile:focus-visible .tuile__ouvrir { opacity: 1; }
+
+.tuile__valeur {
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.026em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tuile__variation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 20px;
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.tuile__bas {
+  display: flex;
+  align-items: flex-end;
+  min-height: 38px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.tuile__note { font-size: var(--fs-sm); color: var(--text-muted); }
+
+.variation {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px 1px 4px;
+  border-radius: 99px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.variation--ok { background: var(--ok-soft); color: var(--ok); }
+.variation--danger { background: var(--danger-soft); color: var(--danger); }
+.variation--neutre { background: var(--ink-050); color: var(--ink-600); }
+
+/* ---------- Rangees ---------- */
+
+.tdb-rangee {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+.tdb-rangee > .card + .card { margin-top: 0; }
+@media (max-width: 1100px) { .tdb-rangee { grid-template-columns: minmax(0, 1fr); } }
+
+.tdb-carte { display: flex; flex-direction: column; min-width: 0; }
+.tdb-carte__tete {
+  display: flex;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 13px 16px 0;
+}
+.tdb-carte__tete h3 { margin-right: auto; font-size: var(--fs-lg); }
+.tdb-carte__meta { font-size: var(--fs-sm); color: var(--text-faint); }
+.tdb-carte__graphe { padding: 10px 14px 12px 8px; }
+
+.tdb-carte__chiffre { display: flex; align-items: baseline; gap: 8px; padding: 6px 16px 2px; }
+.tdb-carte__chiffre strong {
+  font-size: 27px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tdb-carte__chiffre span { font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* Faits de pied de carte : trois chiffres de contexte, pas davantage. */
+.tdb-faits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: auto 0 0;
+  padding: 11px 16px 13px;
+  border-top: 1px solid var(--ink-100);
+}
+.tdb-faits dt { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+.tdb-faits dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tdb-faits dd a { color: var(--text); }
+.tdb-faits dd a:hover { color: var(--brand); text-decoration: none; }
+
+/* ---------- Legende ---------- */
+
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+.legende li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.legende__cle { display: inline-block; flex: 0 0 auto; background: var(--cle); }
+.legende__cle--barre { width: 10px; height: 10px; border-radius: 2px; }
+.legende__cle--ligne { width: 14px; height: 2px; border-radius: 2px; }
+
+/* ---------- Graphiques ---------- */
+
+.graphe { position: relative; width: 100%; }
+.graphe__svg { display: block; overflow: visible; touch-action: pan-y; }
+.graphe__svg:focus { outline: none; }
+.graphe__svg:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-sm); }
+.graphe__svg.is-cliquable { cursor: pointer; }
+
+.graphe__grille { stroke: var(--ink-100); stroke-width: 1; shape-rendering: crispEdges; }
+.graphe__zero { stroke: var(--ink-300); stroke-width: 1; shape-rendering: crispEdges; }
+.graphe__axe { fill: var(--text-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.graphe__bande { fill: var(--ink-050); }
+.graphe__ligne { fill: none; stroke: var(--ink-700); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.graphe__point { fill: var(--ink-700); stroke: var(--white); stroke-width: 2; }
+
+.graphe--sombre .graphe__grille { stroke: rgba(255, 255, 255, 0.18); }
+.graphe--sombre .graphe__zero { stroke: rgba(255, 255, 255, 0.45); }
+.graphe--sombre .graphe__axe { fill: var(--vif-texte-2); }
+.graphe--sombre .graphe__svg:focus-visible { outline-color: var(--white); }
+
+.graphe__reel { fill: none; stroke: var(--white); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.graphe__point-reel { fill: var(--white); stroke: #0e3449; stroke-width: 2; }
+/* Le tirete dit « modele », pas « mesure ». Ce n'est pas une grille. */
+.graphe__tendance {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+  stroke-linecap: round;
+}
+.graphe__intervalle { fill: rgba(255, 255, 255, 0.14); }
+.graphe__aujourdhui { stroke: rgba(255, 255, 255, 0.35); stroke-width: 1; shape-rendering: crispEdges; }
+.graphe__repere { fill: var(--vif-texte-2); font-size: 11px; }
+.graphe__curseur { stroke: rgba(255, 255, 255, 0.5); stroke-width: 1; shape-rendering: crispEdges; }
+.graphe__point-projete { fill: #0e3449; stroke: var(--white); stroke-width: 2; }
+
+/* L'infobulle flotte : c'est l'une des rares surfaces qui porte une ombre. */
+.bulle {
+  position: absolute;
+  z-index: 20;
+  min-width: 156px;
+  padding: 8px 10px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  pointer-events: none;
+}
+.bulle__titre { margin-bottom: 4px; font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+.bulle__ligne { display: flex; align-items: center; gap: 7px; line-height: 1.65; white-space: nowrap; }
+.bulle__cle { flex: 0 0 auto; width: 12px; height: 0; border-top: 2px solid var(--cle); border-radius: 2px; }
+.bulle__cle--tirets { border-top-style: dashed; }
+.bulle__cle--voile { height: 9px; border: 0; background: var(--ink-100); }
+.bulle__valeur { font-weight: 600; font-variant-numeric: tabular-nums; }
+.bulle__libelle { color: var(--text-muted); }
+.bulle__pied {
+  margin-top: 5px;
+  padding-top: 5px;
+  border-top: 1px solid var(--ink-100);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* ---------- Sparkline et jauge ---------- */
+
+.spark { position: relative; width: 100%; }
+.spark svg { display: block; overflow: visible; }
+.spark__ligne { fill: none; stroke: var(--ink-300); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.spark__zero { stroke: var(--ink-100); stroke-width: 1; }
+.spark__point { stroke: var(--white); stroke-width: 2; }
+/* Sous la courbe : au-dessus, la bulle masquerait la valeur de la tuile,
+   precisement celle a laquelle on compare le point survole. */
+.spark__bulle {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 5px 8px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.spark__bulle.is-gauche { right: 0; left: auto; }
+.spark__bulle strong { font-size: var(--fs-sm); font-weight: 600; font-variant-numeric: tabular-nums; }
+.spark__bulle span { color: var(--text-muted); }
+
+.jauge { display: flex; align-items: center; gap: 10px; width: 100%; padding-bottom: 6px; }
+.jauge__piste {
+  position: relative;
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--ink-100);
+}
+.jauge__remplissage { height: 100%; border-radius: 99px; background: var(--ink-400); }
+.jauge__seuil {
+  position: absolute;
+  top: -3px;
+  width: 1px;
+  height: 14px;
+  background: var(--ink-400);
+}
+.jauge__etat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.jauge--ok .jauge__piste { background: var(--ok-soft); }
+.jauge--ok .jauge__remplissage { background: var(--ok); }
+.jauge--warn .jauge__piste { background: var(--warn-soft); }
+.jauge--warn .jauge__remplissage { background: var(--warn); }
+.jauge--danger .jauge__piste { background: var(--danger-soft); }
+.jauge--danger .jauge__remplissage { background: var(--danger); }
+.jauge--ok .jauge__etat { color: var(--ok); }
+.jauge--warn .jauge__etat { color: var(--warn); }
+.jauge--danger .jauge__etat { color: var(--danger); }
+
+/* ---------- Barres horizontales ---------- */
+
+.barres { margin: 0; padding: 2px 8px 8px; list-style: none; }
+.barres__groupe { padding: 8px 16px 0; font-size: var(--fs-xs); color: var(--text-faint); }
+.barres__ligne {
+  display: grid;
+  grid-template-columns: minmax(92px, 40%) minmax(0, 1fr) 40px 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: var(--r-md);
+  color: var(--text);
+  text-decoration: none;
+}
+a.barres__ligne:hover { background: var(--ink-050); text-decoration: none; }
+.barres__libelle { overflow: hidden; font-size: var(--fs-md); text-overflow: ellipsis; white-space: nowrap; }
+.barres__piste { display: block; height: 8px; }
+/* Pied carre sur la ligne de base, bout arrondi du cote de la valeur. */
+.barres__barre { display: block; height: 8px; border-radius: 0 4px 4px 0; }
+.barres__valeur { font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+.barres__fleche { display: inline-flex; color: var(--ink-300); }
+a.barres__ligne:hover .barres__fleche { color: var(--brand); }
+.barres li.is-nul .barres__libelle,
+.barres li.is-nul .barres__valeur { color: var(--text-faint); font-weight: 400; }
+
+/* ---------- File « a traiter » ---------- */
+
+.file { margin: 0; padding: 6px 8px 10px; list-style: none; }
+.file__ligne {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--r-md);
+  color: var(--text);
+  text-decoration: none;
+}
+.file__ligne:hover { background: var(--ink-050); text-decoration: none; }
+.file__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-md);
+  background: var(--ink-050);
+  color: var(--ink-400);
+}
+.file__ligne--danger .file__icone { background: var(--danger-soft); color: var(--danger); }
+.file__ligne--warn .file__icone { background: var(--warn-soft); color: var(--warn); }
+.file__ligne--info .file__icone { background: var(--info-soft); color: var(--info); }
+.file__libelle { display: flex; flex-direction: column; min-width: 0; font-size: var(--fs-md); line-height: 1.35; }
+.file__montant { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.file__nombre { font-size: var(--fs-lg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.file__fleche { color: var(--ink-300); }
+.file__ligne:hover .file__fleche { color: var(--brand); }
+.file__ligne.is-vide { color: var(--text-faint); }
+.file__ligne.is-vide .file__nombre { font-weight: 400; color: var(--text-faint); }
+
+/* ---------- Produits ---------- */
+
+.tdb-produits { margin-top: 6px; }
+.tdb-produits tbody tr { cursor: pointer; }
+/* --brand et non le rouge du logo : un anneau rouge se lirait comme un
+   refus. */
+.tdb-produits tbody tr:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.tdb-produits tbody tr.is-choisi,
+.tdb-produits tbody tr.is-choisi:hover { background: var(--brand-soft); }
+.tdb-produits tbody tr.is-attenue td { opacity: 0.45; }
+
+.cellule-barre {
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) 66px;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+.cellule-barre__piste { display: block; height: 8px; }
+.cellule-barre__barre { display: block; height: 8px; border-radius: 0 4px 4px 0; }
+.cellule-barre__texte { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.cellule-barre--nombre { grid-template-columns: minmax(48px, 1fr) 32px; }
+.tdb-produits tfoot td { color: var(--text); }
+.tdb-produits tfoot .cellule-barre__piste { visibility: hidden; }
+
+/* Seconde section d'une carte : un filet la separe de la premiere. */
+.tdb-carte__tete--section { margin-top: 4px; padding-top: 13px; border-top: 1px solid var(--ink-100); }
+.tdb-types { margin: 4px 0 8px; }
+.tdb-types td:first-child { width: 34%; }
+.tdb-types tbody tr:hover { background: transparent; }
+
+.etat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.etat--ok { color: var(--ok); }
+.etat--warn { color: var(--warn); }
+.etat--danger { color: var(--danger); }
+
+/* Vue tableau d'un graphique : meme hauteur que le graphique, elle defile. */
+.tdb-defilant {
+  max-height: 250px;
+  margin: 10px 16px 14px;
+  overflow: auto;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+}
+.tdb-defilant thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+.tdb-defilant tbody tr { cursor: pointer; }
+
+.table--compacte th,
+.table--compacte td { padding: 8px 12px; }
+.table tfoot td {
+  padding: 9px 12px;
+  border-top: 1px solid var(--ink-200);
+  font-weight: 600;
+}
+
+/* ---------- Le panneau vif : capital et projection ----------
+
+   La vedette de la page, la seule surface marine. */
+.tdb-hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 17px 20px 13px;
+  border-radius: var(--r-lg);
+  background-color: #0e3449;
+  background-image: var(--vif-lueur), var(--vif-fond);
+  box-shadow: var(--vif-arete), var(--shadow-vif);
+  color: var(--white);
+}
+.tdb-hero.is-rechargement .graphe,
+.tdb-hero.is-rechargement .tdb-hero__modele { opacity: 0.5; transition: opacity 0.18s ease; }
+
+.tdb-hero__tete { display: flex; align-items: flex-start; gap: 14px 30px; flex-wrap: wrap; }
+.tdb-hero__principal { display: flex; flex-direction: column; min-width: 0; }
+.tdb-hero__libelle { font-size: var(--fs-sm); font-weight: 500; color: var(--vif-texte-2); }
+.tdb-hero__chiffre {
+  margin-top: 2px;
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tdb-hero__sous { margin-top: 4px; font-size: var(--fs-xs); color: var(--vif-texte-2); }
+
+.tdb-hero__modele { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 4px 0 0; }
+.tdb-hero__modele dt { font-size: var(--fs-xs); color: var(--vif-texte-2); }
+.tdb-hero__modele dd {
+  margin: 3px 0 0;
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tdb-hero__modele dd span { font-size: var(--fs-xs); font-weight: 400; color: var(--vif-texte-2); }
+
+.tdb-hero__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.tdb-hero__detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--white);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.tdb-hero__detail:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); color: var(--white); }
+.tdb-hero__detail:focus-visible { outline-color: var(--white); }
+.tdb-hero__detail:disabled { opacity: 0.4; }
+
+.tdb-hero .graphe { margin-top: 10px; }
+.tdb-hero__etat {
+  display: grid;
+  place-items: center;
+  min-height: 232px;
+  color: var(--vif-texte-2);
+}
+
+.tdb-hero__pied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.tdb-hero__legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-xs);
+  color: var(--vif-texte-2);
+}
+.tdb-hero__legende li { display: inline-flex; align-items: center; gap: 6px; }
+.cle-accent { width: 14px; height: 2px; border-radius: 2px; background: var(--white); }
+.cle-tirets { width: 14px; border-top: 2px dashed rgba(255, 255, 255, 0.8); }
+.cle-voile { width: 12px; height: 9px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); }
+
+/* ---------- Mise en service ---------- */
+
+.mes {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--fs-md);
+  text-align: left;
+}
+.mes:hover { border-color: var(--ink-200); }
+.mes--ok > svg:first-child { color: var(--ok); }
+.mes--warn > svg:first-child { color: var(--warn); }
+.mes__compte { margin-left: auto; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mes > svg:last-child { color: var(--ink-300); }
+
+/* ---------- Fenetres de detail ---------- */
+
+.detail { display: grid; gap: 18px; }
+.detail__entete { display: flex; align-items: baseline; gap: 8px 14px; flex-wrap: wrap; }
+.detail__valeur {
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.detail__avant { font-size: var(--fs-sm); color: var(--text-muted); }
+.detail__equation { display: flex; flex-direction: column; gap: 4px; }
+.detail__equation .mono { font-size: var(--fs-lg); }
+
+.detail__definition {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+}
+.detail__definition dt { font-size: var(--fs-xs); color: var(--text-muted); }
+.detail__definition dd { margin: 2px 0 0; font-size: var(--fs-sm); }
+.detail__definition code { font-size: 11.5px; color: var(--ink-600); }
+
+.detail__chiffres {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.detail__chiffres > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+}
+.detail__chiffres span { font-size: var(--fs-xs); color: var(--text-muted); }
+.detail__chiffres strong {
+  font-size: var(--fs-xl);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.detail__section { display: grid; gap: 8px; }
+.detail__titre { display: flex; align-items: baseline; gap: 10px; }
+.detail__titre h4 { font-size: var(--fs-md); }
+.detail__titre span { font-size: var(--fs-xs); color: var(--text-faint); }
+.detail__table { overflow: hidden; border: 1px solid var(--ink-100); border-radius: var(--r-md); }
+.detail__vide {
+  padding: 12px 14px;
+  border: 1px solid var(--ink-100);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+@media (max-width: 640px) {
+  .detail__definition { grid-template-columns: minmax(0, 1fr); }
+  .tdb-hero__chiffre { font-size: 36px; }
+  .tdb-hero__actions { margin-left: 0; }
+  .tdb-faits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- Bascule tableau d'un graphique ---------- */
+
+.graphe__barre-outils { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.graphe__bascule {
+  border: 0;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.graphe__bascule:hover { color: var(--brand); text-decoration: underline; }
+
+/* Le libelle d'une repartition mene a la liste qui la reproduit. */
+a.barres__libelle { color: var(--text); }
+a.barres__libelle:hover { color: var(--brand); text-decoration: none; }

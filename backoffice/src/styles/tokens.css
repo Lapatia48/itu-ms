@@ -1,0 +1,96 @@
+/* Design tokens de la console ITU Motor Society : memes couleurs que la
+   boutique (voir frontoffice/src/styles/tokens.css pour le raisonnement), pas
+   la meme geometrie : on lit ici des tableaux toute la journee, les angles
+   restent nets et la typographie dense. */
+:root {
+  /* Marque */
+  --brand-vif: #d51816;     /* rouge du logo : graphismes seulement (4,1:1) */
+  --brand: #0e3449;         /* action principale, liens, onglet actif */
+  --brand-dark: #0a2637;
+  --brand-soft: #e6edf2;
+  --brand-pale: #f1f5f8;
+
+  /* Les bandes du logo, dans un coin des panneaux vifs (blanc) et du pied. */
+  --bandes-clair: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='68' height='24' viewBox='0 0 68 24'%3E%3Cg fill='%23ffffff' fill-opacity='.14'%3E%3Cpath d='M0 24 L9 0 L17 0 L8 24 Z'/%3E%3Cpath d='M17 24 L26 0 L34 0 L25 24 Z'/%3E%3Cpath d='M34 24 L43 0 L51 0 L42 24 Z'/%3E%3Cpath d='M51 24 L60 0 L68 0 L59 24 Z'/%3E%3C/g%3E%3C/svg%3E");
+  --bandes-rouge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='68' height='24' viewBox='0 0 68 24'%3E%3Cg fill='%23d51816' fill-opacity='.16'%3E%3Cpath d='M0 24 L9 0 L17 0 L8 24 Z'/%3E%3Cpath d='M17 24 L26 0 L34 0 L25 24 Z'/%3E%3Cpath d='M34 24 L43 0 L51 0 L42 24 Z'/%3E%3Cpath d='M51 24 L60 0 L68 0 L59 24 Z'/%3E%3C/g%3E%3C/svg%3E");
+
+  /* Le panneau vif : LA surface marine d'une page, et il n'y en a qu'un. */
+  --vif-fond: linear-gradient(150deg, #11405a 0%, #0e3449 55%, #092534 100%);
+  --vif-lueur: radial-gradient(60% 70% at 100% 0%, rgba(120, 190, 225, 0.2) 0%, rgba(120, 190, 225, 0) 70%);
+  --vif-arete: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --vif-texte-2: rgba(255, 255, 255, 0.9);
+  --shadow-vif: 0 2px 4px rgba(9, 37, 52, 0.14), 0 18px 36px -14px rgba(9, 37, 52, 0.45);
+  --shadow-card: 0 1px 2px rgba(14, 32, 44, 0.04), 0 6px 18px -8px rgba(14, 40, 60, 0.14);
+
+  /* Encre : gris a peine teintes de bleu */
+  --ink-900: #11191f;
+  --ink-800: #1b252d;
+  --ink-700: #2a353e;
+  --ink-600: #44515b;
+  --ink-500: #5c6974;
+  --ink-400: #87939d;
+  --ink-300: #b4bec6;
+  --ink-200: #d9e0e6;
+  --ink-100: #e7ecf0;
+  --ink-050: #eff3f6;
+  --ink-000: #f6f9fb;
+  --white: #ffffff;
+
+  /* Semantique */
+  --ok: #0f6e2a;
+  --ok-soft: #e7f5e9;
+  --warn: #a15c07;
+  --warn-soft: #fdf3e1;
+  --danger: #9c1c13;
+  --danger-soft: #fdecea;
+  --info: #1d5c8f;
+  --info-soft: #e8f0f7;
+  --neutral-soft: var(--ink-100);
+
+  /* Surfaces */
+  --bg: var(--ink-000);
+  --surface: var(--white);
+  --surface-alt: var(--ink-050);
+  --border: var(--ink-200);
+  --border-strong: var(--ink-300);
+
+  /* Texte */
+  --text: var(--ink-900);
+  --text-muted: var(--ink-500);
+  --text-faint: var(--ink-400);
+  --text-invert: var(--white);
+
+  /* Barre laterale BLANCHE : l'element actif porte la couleur, pas la colonne.
+     Son filet gauche est le rouge du logo, seul endroit de la console ou il
+     sert hors graphique. */
+  --nav-bg: var(--surface);
+  --nav-bg-hover: var(--ink-050);
+  --nav-bg-active: var(--brand-soft);
+  --nav-text: var(--ink-600);
+  --nav-text-active: var(--brand-dark);
+  --nav-section: var(--ink-500);
+  --nav-border: var(--border);
+  --nav-accent: var(--brand-vif);
+
+  /* Geometrie */
+  --r-sm: 3px;
+  --r-md: 5px;
+  --r-lg: 8px;
+  --sidebar-w: 254px;
+  --topbar-h: 56px;
+
+  /* Elevation : ombres teintees marine */
+  --shadow-sm: 0 1px 2px rgba(10, 35, 50, 0.06);
+  --shadow-md: 0 4px 14px rgba(10, 35, 50, 0.1);
+  --shadow-lg: 0 18px 44px rgba(10, 35, 50, 0.18);
+
+  /* Typographie */
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SF Mono", monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 19px;
+  --fs-2xl: 25px;
+}
