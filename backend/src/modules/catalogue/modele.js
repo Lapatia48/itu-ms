@@ -1,6 +1,5 @@
 import { ligne, lignes, transaction } from '../../db.js';
 import { ErreurMetier } from '../../utils/erreurs.js';
-import { retirerImage } from '../../utils/image.js';
 import * as valider from '../../utils/valider.js';
 
 // Le perimetre complet est renvoye d'un coup : le filtrage multicritere et la
@@ -56,9 +55,11 @@ export async function creerProduit(corps, image) {
     const { rows } = await client.query(
       `insert into produit (id_categorie, nom, description, prix, couleur, image)
        values ($1, $2, $3, $4, $5, $6) returning id_produit`,
-      [donnees.idCategorie, donnees.nom, donnees.description, donnees.prix, donnees.couleur, image]
+      [donnees.idCategorie, donnees.nom, donnees.description, donnees.prix, donnees.couleur,
+        image?.nom ?? null]
     );
     const idProduit = rows[0].id_produit;
+    if (image) await poserImage(client, idProduit, image);
     await client.query(
       `insert into produit_taille (id_produit, id_taille)
        select $1, unnest($2::int[])`,
@@ -68,6 +69,26 @@ export async function creerProduit(corps, image) {
   });
 
   return produit(identifiant);
+}
+
+/* ---------------- Photos ---------------- */
+
+// Les photos vivent en base (produit_image) et non sur le disque du serveur :
+// l'API tourne en ligne sans systeme de fichiers persistant, et un hebergement
+// gratuit efface son disque a chaque redemarrage. Ce qu'on y gagne au passage :
+// la photo et la fiche qu'elle illustre sont ecrites dans la MEME transaction,
+// donc jamais l'une sans l'autre.
+function poserImage(client, idProduit, image) {
+  return client.query(
+    `insert into produit_image (nom, id_produit, type_mime, octets)
+     values ($1, $2, $3, $4)`,
+    [image.nom, idProduit, image.typeMime, image.octets]
+  );
+}
+
+// Lue par la route ouverte /images/:nom.
+export function imageParNom(nom) {
+  return ligne('select type_mime, octets from produit_image where nom = $1', [nom]);
 }
 
 export async function majProduit(idProduit, corps, image) {
@@ -82,8 +103,17 @@ export async function majProduit(idProduit, corps, image) {
               couleur = $6, image = coalesce($7, image)
         where id_produit = $1 and etat = 1`,
       [idProduit, donnees.idCategorie, donnees.nom, donnees.description, donnees.prix,
-        donnees.couleur, image]
+        donnees.couleur, image?.nom ?? null]
     );
+    // L'echange de photo tient dans la transaction : l'ancienne ne part qu'avec
+    // la nouvelle arrivee, et un echec les laisse toutes deux comme elles
+    // etaient.
+    if (image) {
+      await poserImage(client, idProduit, image);
+      if (ancienne.image) {
+        await client.query('delete from produit_image where nom = $1', [ancienne.image]);
+      }
+    }
     await client.query('delete from produit_taille where id_produit = $1', [idProduit]);
     await client.query(
       'insert into produit_taille (id_produit, id_taille) select $1, unnest($2::int[])',
@@ -91,9 +121,6 @@ export async function majProduit(idProduit, corps, image) {
     );
   });
 
-  // L'ancienne image n'est retiree qu'une fois la nouvelle en base : si
-  // l'ecriture echoue, la fiche garde l'illustration qu'elle avait.
-  if (image && ancienne.image) await retirerImage(ancienne.image);
   return produit(idProduit);
 }
 

@@ -1,0 +1,64 @@
+// Worker Cloudflare qui porte l'API en ligne. En local, rien de tout ceci ne
+// sert : « npm run dev » lance src/index.js sous node.
+//
+//   npm run dev:worker   execute ce Worker sur le poste (workerd), utile pour
+//                        verifier que le paquet se construit et que node:*
+//                        repond comme attendu
+//   npm run deploy       le met en ligne
+//
+// Avant le premier deploiement, trois choses a poser une fois (voir
+// brouillon/01-11-26-deploiement.md) :
+//   wrangler hyperdrive create itu-ms-db --connection-string "postgres://..."
+//     puis recopier l'identifiant rendu dans « id » ci-dessous
+//   wrangler secret put JWT_SECRET
+//   ORIGINES : les adresses des deux fronts, sans quoi le navigateur refusera
+//     les reponses (le jeton voyage en en-tete, « * » le rendrait lisible de
+//     n'importe quelle page).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "itu-ms-api",
+  "main": "src/worker.js",
+
+  // node:http et httpServerHandler — ce qui permet de faire tourner Express
+  // tel quel — demandent nodejs_compat et une date posterieure au 15/08/2025.
+  "compatibility_date": "2026-10-29",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": { "enabled": true },
+
+  // Express lit body-parser au chargement, et sa chaine (raw-body, iconv-lite)
+  // ne se construit pas pour workerd. L API lit son corps de requete elle-meme
+  // (src/middlewares/corps.js), donc on le remplace. Voir le fichier pointe.
+  "alias": { "body-parser": "./src/vendor/body-parser-absent.js" },
+
+  // Hyperdrive tient les connexions PostgreSQL chaudes devant Neon. Sans lui,
+  // chaque requete repaierait l'ouverture d'une connexion : un Worker ne peut
+  // pas garder la sienne d'une requete a l'autre.
+  //
+  // SON CACHE DE REQUETES EST DESACTIVE, et doit le rester :
+  //   wrangler hyperdrive update <id> --caching-disabled
+  //
+  // Hyperdrive met les SELECT en cache par defaut. Ici cela cassait trois
+  // choses d'un coup : une fiche relue apres encaissement montrait l'ancien
+  // reste a payer, une photo supprimee continuait d'etre servie, et surtout un
+  // compte mis a la corbeille gardait ses droits — alors que tout le projet
+  // repose sur le fait que le profil est relu EN BASE a chaque appel. La mise
+  // en commun des connexions, elle, est conservee : c'est ce qu'on vient
+  // chercher ici.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "26cd4ff03c314b68a10d808330173b59"
+    }
+  ],
+
+  // ORIGINES : les adresses exactes des deux fronts, a reprendre de ce que
+  // rend « npm run deploy » dans frontoffice/ et backoffice/ (le sous-domaine
+  // depend du compte). Sans elles, le navigateur refusera les reponses de
+  // l API — et « * » n est pas une option : le jeton de session voyage en
+  // en-tete, il serait lisible depuis n importe quelle page.
+  "vars": {
+    "JWT_DUREE": "12h",
+    "ORIGINES": "https://itu-ms-boutique.itu-motor-society.workers.dev,https://itu-ms-console.itu-motor-society.workers.dev"
+  }
+}

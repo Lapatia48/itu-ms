@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, urlImage } from '../lib/api';
 import { useAction } from '../lib/useResource';
 import { usePanier, cleLigne } from '../lib/panier';
 import { useAuth } from '../auth/session';
@@ -64,7 +64,7 @@ export default function Panier() {
               <div className="panier-ligne" key={cle}>
                 <Link to={`/article/${ligne.idProduit}`} className="panier-ligne__image">
                   {ligne.image
-                    ? <img src={`/images/${ligne.image}`} alt="" />
+                    ? <img src={urlImage(ligne.image)} alt="" />
                     : <span className="article-carte__sans-image"><Icon name="vetement" size={28} /></span>}
                 </Link>
 

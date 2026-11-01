@@ -68,6 +68,15 @@ routes.post('/corbeille/:type/:id/restaurer', admin, routeAsync(async (requete, 
   reponse.json({ restaure: true });
 }));
 
+/* ---------------- Remise a zero ---------------- */
+
+// Reservee a l'administrateur, et la base le reverifie elle-meme
+// (fn_reinitialiser refuse tout autre profil) : l'ecran n'est pas le seul
+// garde-fou d'une operation irreversible.
+routes.post('/reinitialiser', admin, routeAsync(async (requete, reponse) => {
+  reponse.json(await modele.reinitialiser(requete.compte, requete.body));
+}));
+
 /* ---------------- Parametres ---------------- */
 
 routes.get('/parametres', interne, routeAsync(async (requete, reponse) => {

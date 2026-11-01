@@ -1,18 +1,16 @@
 import { Router } from 'express';
-import multer from 'multer';
 import * as modele from './modele.js';
 import { authentifier, exigerProfil } from '../../middlewares/auth.js';
+import { multipart } from '../../middlewares/multipart.js';
 import { routeAsync } from '../../utils/erreurs.js';
-import { enregistrerImage } from '../../utils/image.js';
+import { preparerImage } from '../../utils/image.js';
 
 const routes = Router();
 
-// En memoire : le fichier n'est pose sur le disque qu'une fois son format
-// reconnu, et jamais si la base refuse la ligne.
-const televersement = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 3 * 1024 * 1024, files: 1 },
-});
+// Le fichier reste en memoire tant que son format n'est pas reconnu, et il
+// n'est ecrit qu'avec la ligne qu'il illustre : un fichier refuse ne laisse
+// rien derriere lui.
+const depotPhoto = multipart('image');
 
 const admin = [authentifier, exigerProfil('ADMIN')];
 
@@ -24,13 +22,13 @@ routes.get('/produits/:id', routeAsync(async (requete, reponse) => {
   reponse.json(await modele.produit(Number(requete.params.id)));
 }));
 
-routes.post('/produits', ...admin, televersement.single('image'), routeAsync(async (requete, reponse) => {
-  const image = await enregistrerImage(requete.file);
+routes.post('/produits', ...admin, depotPhoto, routeAsync(async (requete, reponse) => {
+  const image = preparerImage(requete.fichier);
   reponse.status(201).json(await modele.creerProduit(lireCorps(requete), image));
 }));
 
-routes.patch('/produits/:id', ...admin, televersement.single('image'), routeAsync(async (requete, reponse) => {
-  const image = await enregistrerImage(requete.file);
+routes.patch('/produits/:id', ...admin, depotPhoto, routeAsync(async (requete, reponse) => {
+  const image = preparerImage(requete.fichier);
   reponse.json(await modele.majProduit(Number(requete.params.id), lireCorps(requete), image));
 }));
 

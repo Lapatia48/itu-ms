@@ -1,22 +1,23 @@
 import { ligne } from '../../db.js';
 import { ErreurMetier } from '../../utils/erreurs.js';
-import { empreinte, verifier } from '../../utils/motDePasse.js';
+import { hacher, verifie } from '../../utils/motDePasse.js';
 import * as valider from '../../utils/valider.js';
 
 const CHAMPS = 'id_compte, etu, nom, prenom, promotion, telephone, profil, cree_le';
 
+// L'empreinte est verifiee EN BASE, dans le where : elle ne remonte jamais
+// dans le code, et la comparaison se fait a temps constant du cote de
+// PostgreSQL. Voir utils/motDePasse.js pour le pourquoi.
 export async function connexion(etu, motDePasse) {
   const identifiant = valider.texte(etu, { champ: 'Numéro ETU', requis: true, max: 20 });
   const compte = await ligne(
-    `select ${CHAMPS}, mot_de_passe from compte where upper(etu) = upper($1) and etat = 1`,
-    [identifiant]
+    `select ${CHAMPS} from compte
+      where upper(etu) = upper($1) and etat = 1 and ${verifie('mot_de_passe', '$2')}`,
+    [identifiant, String(motDePasse ?? '')]
   );
   // Un seul message pour les deux cas : dire « ce compte existe » renseigne
   // qui cherche des numeros valides.
-  if (!compte || !verifier(String(motDePasse ?? ''), compte.mot_de_passe)) {
-    throw new ErreurMetier('Numéro ETU ou mot de passe incorrect.', 401);
-  }
-  delete compte.mot_de_passe;
+  if (!compte) throw new ErreurMetier('Numéro ETU ou mot de passe incorrect.', 401);
   return compte;
 }
 
@@ -32,10 +33,10 @@ export async function inscription(corps) {
 
   return ligne(
     `insert into compte (etu, nom, prenom, promotion, telephone, mot_de_passe, profil)
-     values ($1, $2, $3, $4, $5, $6, 'CLIENT')
+     values ($1, $2, $3, $4, $5, ${hacher('$6')}, 'CLIENT')
      returning ${CHAMPS}`,
     [donnees.etu, donnees.nom, donnees.prenom, donnees.promotion, donnees.telephone,
-      empreinte(donnees.motDePasse)]
+      donnees.motDePasse]
   );
 }
 
@@ -62,11 +63,17 @@ export async function majProfil(idCompte, corps) {
 }
 
 export async function changerMotDePasse(idCompte, ancien, nouveau) {
-  const compte = await ligne('select mot_de_passe from compte where id_compte = $1 and etat = 1', [idCompte]);
-  if (!compte || !verifier(String(ancien ?? ''), compte.mot_de_passe)) {
-    throw new ErreurMetier('Mot de passe actuel incorrect.', 401);
-  }
+  const compte = await ligne(
+    `select id_compte from compte
+      where id_compte = $1 and etat = 1 and ${verifie('mot_de_passe', '$2')}`,
+    [idCompte, String(ancien ?? '')]
+  );
+  if (!compte) throw new ErreurMetier('Mot de passe actuel incorrect.', 401);
+
   const propre = valider.motDePasse(nouveau, { champ: 'Nouveau mot de passe' });
-  await ligne('update compte set mot_de_passe = $1 where id_compte = $2', [empreinte(propre), idCompte]);
+  await ligne(
+    `update compte set mot_de_passe = ${hacher('$1')} where id_compte = $2`,
+    [propre, idCompte]
+  );
   return { change: true };
 }

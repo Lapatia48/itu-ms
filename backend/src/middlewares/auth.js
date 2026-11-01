@@ -1,10 +1,23 @@
-import jwt from 'jsonwebtoken';
+import { SignJWT, jwtVerify } from 'jose';
 import { config } from '../config.js';
 import { ErreurMetier } from '../utils/erreurs.js';
 import { compteActif } from '../utils/roles.js';
 
+// jose plutot que jsonwebtoken : jose signe avec Web Crypto, present a
+// l'identique sous node et dans un Worker Cloudflare, la ou jsonwebtoken passe
+// par node:crypto. Un HMAC-SHA256 ne coute rien en temps processeur — ce qui
+// compte sur un hebergement qui le plafonne a 10 ms par requete.
+function cle() {
+  return new TextEncoder().encode(config.jwt.secret);
+}
+
 export function signer(compte) {
-  return jwt.sign({ sub: compte.id_compte }, config.jwt.secret, { expiresIn: config.jwt.duree });
+  return new SignJWT({})
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(String(compte.id_compte))
+    .setIssuedAt()
+    .setExpirationTime(config.jwt.duree)
+    .sign(cle());
 }
 
 function jetonDe(requete) {
@@ -20,11 +33,13 @@ async function lire(requete) {
   if (!jeton) return null;
   let charge;
   try {
-    charge = jwt.verify(jeton, config.jwt.secret);
+    ({ payload: charge } = await jwtVerify(jeton, cle(), { algorithms: ['HS256'] }));
   } catch {
     return null;
   }
-  return compteActif(charge.sub);
+  const idCompte = Number(charge.sub);
+  if (!Number.isInteger(idCompte)) return null;
+  return compteActif(idCompte);
 }
 
 export async function authentifier(requete, reponse, suite) {

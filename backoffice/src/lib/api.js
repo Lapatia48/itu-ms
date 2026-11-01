@@ -1,6 +1,19 @@
 // Client HTTP de l'API ITU Motor Society. Le proxy Vite renvoie /api vers le
 // backend : aucune URL absolue a configurer en developpement.
 const BASE = import.meta.env.VITE_API_URL || '/api/v1';
+
+// Les photos d'articles sont servies par l'API elle-meme, depuis la base
+// (table produit_image) : /images/<nom>, a cote de /api/v1 et non dessous.
+// En developpement le proxy Vite renvoie les deux vers le port 4000. En ligne,
+// les fronts et l'API ne sont pas sur le meme domaine : l'URL doit etre
+// absolue, et elle se deduit de celle de l'API plutot que d'une deuxieme
+// variable a tenir a jour.
+const RACINE = BASE.replace(/\/api\/v1\/?$/, '');
+
+export function urlImage(nom) {
+  return `${RACINE}/images/${nom}`;
+}
+
 const TOKEN_KEY = 'itu.token';
 
 export function getToken() {

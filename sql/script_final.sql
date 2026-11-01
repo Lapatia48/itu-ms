@@ -14,17 +14,27 @@
 
 set client_encoding = 'UTF8';
 
+-- Le hachage des mots de passe est fait par la base, en bcrypt. Deux raisons :
+-- l'API tourne sur un hebergement qui plafonne le temps processeur par requete
+-- (10 ms chez Cloudflare Workers) et un scrypt y serait tue en vol, alors
+-- qu'attendre la base ne compte pas ; et le mot de passe en clair ne traverse
+-- jamais le code applicatif autrement que comme parametre de requete.
+create extension if not exists pgcrypto;
+
 drop view if exists v_corbeille cascade;
 drop view if exists v_commande cascade;
 drop view if exists v_commande_statut cascade;
 drop view if exists v_produit cascade;
 drop view if exists v_avis cascade;
 
+drop function if exists fn_reinitialiser(integer);
+
 drop table if exists avis cascade;
 drop table if exists paiement cascade;
 drop table if exists commande_statut cascade;
 drop table if exists commande_ligne cascade;
 drop table if exists commande cascade;
+drop table if exists produit_image cascade;
 drop table if exists produit_taille cascade;
 drop table if exists produit cascade;
 drop table if exists categorie cascade;
@@ -138,6 +148,21 @@ create table produit_taille (
   id_taille     integer not null references taille(id_taille),
   primary key (id_produit, id_taille)
 );
+
+-- Les photos d'articles sont stockees ICI, pas sur le disque du serveur :
+-- l'API tourne sans systeme de fichiers persistant (Cloudflare Workers), et un
+-- hebergement gratuit efface son disque a chaque redemarrage. La cle est le nom
+-- servi dans l'URL (/images/<nom>) : il est tire au depot et ne se reutilise
+-- pas, ce qui rend la reponse cachable sans fin.
+create table produit_image (
+  nom           varchar(200) primary key,
+  id_produit    integer      not null references produit(id_produit) on delete cascade,
+  type_mime     varchar(20)  not null,
+  octets        bytea        not null,
+  cree_le       timestamptz  not null default now(),
+  constraint chk_image_mime check (type_mime in ('image/jpeg', 'image/png', 'image/webp'))
+);
+create index idx_produit_image_produit on produit_image (id_produit);
 
 
 -- ---------------------------------------------------------------------------
@@ -604,6 +629,62 @@ select 'avis', 'Avis', a.id_avis, p.reference,
 
 
 -- ===========================================================================
+-- Remise a zero
+--
+-- Ce que le bouton « Reinitialiser la base » de la console appelle, et ce par
+-- quoi commence sql/jeu_demonstration.sql : apres son passage, la base est
+-- celle que donne ce fichier joue seul — le parametrage, les tailles, le cycle
+-- de vie, et le seul compte passe en argument.
+--
+-- Unique endroit du projet ou l'on efface vraiment des lignes : partout
+-- ailleurs la suppression est logique (etat = 0) et la corbeille rattrape. Ici
+-- on repart de zero, la corbeille comprise.
+-- ===========================================================================
+
+create or replace function fn_reinitialiser(p_compte integer) returns void as $$
+declare
+  v_profil varchar(20);
+begin
+  select profil into v_profil
+    from compte where id_compte = p_compte and etat = 1;
+  if v_profil is distinct from 'ADMIN' then
+    raise exception 'Reinitialisation reservee a un administrateur en service.'
+      using errcode = 'check_violation';
+  end if;
+
+  -- L'ORDRE COMPTE. trg_chk_ligne refuse qu'on touche aux articles d'une
+  -- commande qui a quitte son statut initial : en vidant commande_statut
+  -- d'abord, fn_statut_courant ne renvoie plus rien et le declencheur laisse
+  -- passer. Sans cela il faudrait le desactiver, ce qui demande des droits
+  -- qu'on n'a pas sur une base hebergee.
+  delete from avis;
+  delete from paiement;
+  delete from commande_statut;
+  delete from commande_ligne;
+  delete from commande;
+  delete from produit_image;
+  delete from produit_taille;
+  delete from produit;
+  delete from categorie;
+  delete from compte where id_compte <> p_compte;
+
+  -- Les references repartent de CMD-26-0001 et ART-0001 : une base vierge qui
+  -- numerote a partir de 48 n'est pas vierge pour celui qui la lit.
+  perform setval('seq_reference_commande', 1, false);
+  perform setval('seq_reference_produit',  1, false);
+  perform setval(pg_get_serial_sequence('categorie', 'id_categorie'), 1, false);
+  perform setval(pg_get_serial_sequence('produit',   'id_produit'),   1, false);
+  perform setval(pg_get_serial_sequence('commande',  'id_commande'),  1, false);
+  perform setval(pg_get_serial_sequence('commande_ligne',  'id_ligne'),  1, false);
+  perform setval(pg_get_serial_sequence('commande_statut', 'id_commande_statut'), 1, false);
+  perform setval(pg_get_serial_sequence('paiement', 'id_paiement'), 1, false);
+  perform setval(pg_get_serial_sequence('avis',     'id_avis'),     1, false);
+  perform setval(pg_get_serial_sequence('compte',   'id_compte'), p_compte + 1, false);
+end;
+$$ language plpgsql;
+
+
+-- ===========================================================================
 -- Donnees de parametrage
 -- ===========================================================================
 
@@ -663,223 +744,20 @@ insert into taille (code, libelle, ordre) values
   ('XXL', 'XXL',            6),
   ('TU',  'Taille unique',  7);
 
-insert into categorie (code, libelle, ordre) values
-  ('TSHIRT',     'T-shirts',     1),
-  ('POLO',       'Polos',        2),
-  ('SWEAT',      'Sweats',       3),
-  ('VESTE',      'Vestes',       4),
-  ('CASQUETTE',  'Casquettes',   5),
-  ('ACCESSOIRE', 'Accessoires',  6);
-
 
 -- ===========================================================================
--- Comptes de depart
---   ADMIN / GEST01 / GEST02 : mot de passe « itu2026 »
---   etudiants              : mot de passe « etudiant »
+-- Compte d'amorcage
+--
+-- Un seul compte a la livraison : ADMIN / « itu2026 ». Tout le reste —
+-- categories, articles, comptes du bureau et des etudiants — s'ouvre depuis la
+-- console. C'est l'etat que redonne « Reinitialiser la base » (Parametrage >
+-- Parametres), et celui qu'on retrouve en rejouant ce seul fichier.
+--
+-- L'empreinte est calculee par la base (pgcrypto, bcrypt cout 10) : le mot de
+-- passe en clair ne sort pas de ce fichier, et aucune empreinte n'y est
+-- recopiee a la main.
 -- ===========================================================================
 
 insert into compte (etu, nom, prenom, promotion, telephone, mot_de_passe, profil) values
-  ('ADMIN',  'Randrianaivo', 'Tiana',  'Bureau',  '+261 34 11 111 11',
-   'scrypt$8c8d05628ef40da0cff6f8f80ed0cefc$b720657c0b635e9390c89310f49c1a6df736e304bccd8ed4ed24db592fb4449d', 'ADMIN'),
-  ('GEST01', 'Rakotobe',     'Fanilo', 'Bureau',  '+261 34 22 222 22',
-   'scrypt$e2099245a2c089c529c3a0f3688934fa$aa39cdda8c1e90e241f6bf981c791aebc93c973ffea727dba0f84af7bdc04b8e', 'GESTIONNAIRE'),
-  ('GEST02', 'Ravelo',       'Miora',  'Bureau',  '+261 34 33 333 33',
-   'scrypt$4562643dd70fb9b09ab72bc1d7b3676c$a0df50b83f8a9c144b006f8dab4efe09827512f909d96d73fdfa24129e6577ff', 'GESTIONNAIRE'),
-  ('ETU1201', 'Andrianina',  'Hery',   'L3 IG',   '+261 34 44 444 44',
-   'scrypt$618ad5347062321d12f5c5a6d28b1dac$2c1c2ef3331c41df90e398f403c562663e59b39dd52e4990aeb054e6efc3fda7', 'CLIENT'),
-  ('ETU1388', 'Rasoanaivo',  'Tahina', 'M1 GB',   '+261 33 55 555 55',
-   'scrypt$222c7229d5cc92b5da0e85778159ff23$9f1442a862b344cd62a14df9c6f83dc6c4056376f83b749e8be99cfa8b9256be', 'CLIENT'),
-  ('ETU1402', 'Raharison',   'Nirina', 'L2 SR',   '+261 32 66 666 66',
-   'scrypt$e8b39b4d8235b57909917a7128ae91f9$79d163145dcc58729f2e55c2e9f466697b652d597c3ba1a44b1a8984de798c47', 'CLIENT'),
-  ('ETU1455', 'Razafy',      'Lova',   'L3 IG',   '+261 34 77 777 77',
-   'scrypt$bb4fb4c582e41116113d802adf4a74f6$6e6e5d089db67550636741427e83dd5c3c293c7c3bc517d72185c17e2aabe27c', 'CLIENT'),
-  ('ETU1510', 'Andriamasy',  'Ony',    'M2 IG',   '+261 32 88 888 88',
-   'scrypt$81f5678c0ded8ceaece0075ee9d6bb51$b91ebab9653ca0e066174d8aadb2235a034be2e1feafbd903f7e1d03cd346363', 'CLIENT');
-
-
--- ===========================================================================
--- Catalogue de depart
--- ===========================================================================
-
-insert into produit (id_categorie, nom, description, prix, couleur, cree_le) values
-  ((select id_categorie from categorie where code = 'TSHIRT'),
-   'T-shirt Racing Marine', 'Coton 180 g, sérigraphie du logo sur la poitrine et numéro dans le dos.',
-   38000, 'Marine', now() - interval '60 days'),
-  ((select id_categorie from categorie where code = 'TSHIRT'),
-   'T-shirt Piste Blanc', 'Coton 180 g, logo rouge grand format au dos.',
-   38000, 'Blanc', now() - interval '58 days'),
-  ((select id_categorie from categorie where code = 'TSHIRT'),
-   'T-shirt Grid Rouge', 'Coton 180 g, bandes obliques sur la manche gauche.',
-   40000, 'Rouge', now() - interval '45 days'),
-  ((select id_categorie from categorie where code = 'POLO'),
-   'Polo Paddock', 'Piqué de coton, col boutonné, logo brodé.',
-   65000, 'Marine', now() - interval '52 days'),
-  ((select id_categorie from categorie where code = 'POLO'),
-   'Polo Équipe Blanc', 'Piqué de coton, liseré rouge au col et aux manches.',
-   68000, 'Blanc', now() - interval '40 days'),
-  ((select id_categorie from categorie where code = 'SWEAT'),
-   'Sweat à capuche Motor', 'Molleton gratté 320 g, poche kangourou, cordon rouge.',
-   115000, 'Marine', now() - interval '50 days'),
-  ((select id_categorie from categorie where code = 'SWEAT'),
-   'Sweat Col Rond Atelier', 'Molleton 300 g, logo brodé poitrine.',
-   98000, 'Gris chiné', now() - interval '35 days'),
-  ((select id_categorie from categorie where code = 'VESTE'),
-   'Veste Coupe-vent Circuit', 'Nylon déperlant, doublure filet, fermeture pleine longueur.',
-   185000, 'Marine', now() - interval '30 days'),
-  ((select id_categorie from categorie where code = 'VESTE'),
-   'Veste Softshell Mécano', 'Trois couches, poches zippées, logo au dos.',
-   240000, 'Noir', now() - interval '25 days'),
-  ((select id_categorie from categorie where code = 'CASQUETTE'),
-   'Casquette Pit Stop', 'Six panneaux, visière courbée, fermeture réglable.',
-   32000, 'Marine', now() - interval '48 days'),
-  ((select id_categorie from categorie where code = 'CASQUETTE'),
-   'Bonnet Hivernage', 'Maille côtelée, revers brodé.',
-   28000, 'Rouge', now() - interval '20 days'),
-  ((select id_categorie from categorie where code = 'ACCESSOIRE'),
-   'Tote bag Garage', 'Toile 240 g, anses longues, impression recto.',
-   22000, 'Écru', now() - interval '18 days'),
-  ((select id_categorie from categorie where code = 'ACCESSOIRE'),
-   'Écharpe Supporter', 'Maille jacquard, franges, deux faces.',
-   35000, 'Marine', now() - interval '15 days'),
-  ((select id_categorie from categorie where code = 'ACCESSOIRE'),
-   'Lot de 5 autocollants', 'Vinyle découpé, résistant à l''eau.',
-   12000, 'Rouge', now() - interval '12 days');
-
--- Tailles proposees : vetements en S a XXL, accessoires en taille unique.
-insert into produit_taille (id_produit, id_taille)
-select p.id_produit, t.id_taille
-  from produit p
-  join categorie c on c.id_categorie = p.id_categorie
-  join taille t on t.code in ('S', 'M', 'L', 'XL', 'XXL')
- where c.code in ('TSHIRT', 'POLO', 'SWEAT', 'VESTE');
-
-insert into produit_taille (id_produit, id_taille)
-select p.id_produit, t.id_taille
-  from produit p
-  join categorie c on c.id_categorie = p.id_categorie
-  join taille t on t.code = 'TU'
- where c.code in ('CASQUETTE', 'ACCESSOIRE');
-
-
--- ===========================================================================
--- Commandes de depart
---
--- L'ordre compte : articles, puis encaissements, puis statuts. Une
--- confirmation exige l'acompte, une livraison exige le solde.
--- ===========================================================================
-
-do $$
-declare
-  v_gest     integer := (select id_compte from compte where etu = 'GEST01');
-  v_cmd      integer;
-begin
-  -- CMD-26-0001 : livree et soldee
-  insert into commande (id_compte, remarque, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1201'),
-          'Retrait au local du club.', now() - interval '28 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'L'), 2, p.prix
-    from produit p where p.nom = 'T-shirt Racing Marine';
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'TU'), 1, p.prix
-    from produit p where p.nom = 'Casquette Pit Stop';
-  insert into paiement (id_commande, montant, code_mode, date_paiement, id_compte)
-  values (v_cmd, 54000, 'MVOLA', (now() - interval '27 days')::date, v_gest),
-         (v_cmd, 54000, 'ESPECES', (now() - interval '22 days')::date, v_gest);
-  insert into commande_statut (id_commande, code_statut, date_statut, id_compte) values
-    (v_cmd, 'CONFIRMEE',      now() - interval '27 days', v_gest),
-    (v_cmd, 'EN_PREPARATION', now() - interval '25 days', v_gest),
-    (v_cmd, 'PRETE',          now() - interval '23 days', v_gest),
-    (v_cmd, 'LIVREE',         now() - interval '22 days', v_gest);
-
-  -- CMD-26-0002 : livree et soldee, pour un second avis
-  insert into commande (id_compte, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1388'), now() - interval '24 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'M'), 1, p.prix
-    from produit p where p.nom = 'Sweat à capuche Motor';
-  insert into paiement (id_commande, montant, code_mode, date_paiement, id_compte)
-  values (v_cmd, 115000, 'ORANGE_MONEY', (now() - interval '23 days')::date, v_gest);
-  insert into commande_statut (id_commande, code_statut, date_statut, id_compte) values
-    (v_cmd, 'CONFIRMEE',      now() - interval '23 days', v_gest),
-    (v_cmd, 'EN_PREPARATION', now() - interval '20 days', v_gest),
-    (v_cmd, 'PRETE',          now() - interval '18 days', v_gest),
-    (v_cmd, 'LIVREE',         now() - interval '17 days', v_gest);
-
-  -- CMD-26-0003 : prete, acompte verse, solde attendu au retrait
-  insert into commande (id_compte, remarque, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1402'),
-          'Promotion L2 SR, commande groupée.', now() - interval '12 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'XL'), 1, p.prix
-    from produit p where p.nom = 'Veste Coupe-vent Circuit';
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'XL'), 2, p.prix
-    from produit p where p.nom = 'Polo Paddock';
-  insert into paiement (id_commande, montant, code_mode, date_paiement, id_compte)
-  values (v_cmd, 160000, 'MVOLA', (now() - interval '11 days')::date, v_gest);
-  insert into commande_statut (id_commande, code_statut, date_statut, id_compte) values
-    (v_cmd, 'CONFIRMEE',      now() - interval '11 days', v_gest),
-    (v_cmd, 'EN_PREPARATION', now() - interval '8 days',  v_gest),
-    (v_cmd, 'PRETE',          now() - interval '4 days',  v_gest);
-
-  -- CMD-26-0004 : en preparation
-  insert into commande (id_compte, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1455'), now() - interval '9 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'S'), 1, p.prix
-    from produit p where p.nom = 'T-shirt Piste Blanc';
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'TU'), 1, p.prix
-    from produit p where p.nom = 'Tote bag Garage';
-  insert into paiement (id_commande, montant, code_mode, date_paiement, id_compte)
-  values (v_cmd, 30000, 'ESPECES', (now() - interval '8 days')::date, v_gest);
-  insert into commande_statut (id_commande, code_statut, date_statut, id_compte) values
-    (v_cmd, 'CONFIRMEE',      now() - interval '8 days', v_gest),
-    (v_cmd, 'EN_PREPARATION', now() - interval '5 days', v_gest);
-
-  -- CMD-26-0005 : nouvelle, rien d'encaisse
-  insert into commande (id_compte, remarque, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1510'),
-          'Je passe au local vendredi après-midi.', now() - interval '3 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'M'), 1, p.prix
-    from produit p where p.nom = 'Veste Softshell Mécano';
-
-  -- CMD-26-0006 : nouvelle, acompte deja verse
-  insert into commande (id_compte, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1201'), now() - interval '2 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'L'), 3, p.prix
-    from produit p where p.nom = 'T-shirt Grid Rouge';
-  insert into paiement (id_commande, montant, code_mode, reference, date_paiement, id_compte)
-  values (v_cmd, 60000, 'MVOLA', '0341234567', (now() - interval '1 day')::date, v_gest);
-
-  -- CMD-26-0007 : annulee
-  insert into commande (id_compte, cree_le)
-  values ((select id_compte from compte where etu = 'ETU1388'), now() - interval '6 days')
-  returning id_commande into v_cmd;
-  insert into commande_ligne (id_commande, id_produit, id_taille, quantite, prix_unitaire)
-  select v_cmd, p.id_produit, (select id_taille from taille where code = 'XXL'), 1, p.prix
-    from produit p where p.nom = 'Polo Équipe Blanc';
-  insert into commande_statut (id_commande, code_statut, date_statut, id_compte, commentaire)
-  values (v_cmd, 'ANNULEE', now() - interval '5 days',
-          (select id_compte from compte where etu = 'ETU1388'), 'Taille indisponible, à recommander.');
-end $$;
-
-insert into avis (id_produit, id_compte, note, commentaire, cree_le)
-values
-  ((select id_produit from produit where nom = 'T-shirt Racing Marine'),
-   (select id_compte from compte where etu = 'ETU1201'),
-   5, 'Coupe fidèle à la taille, le marquage a tenu après plusieurs lavages.',
-   now() - interval '20 days'),
-  ((select id_produit from produit where nom = 'Sweat à capuche Motor'),
-   (select id_compte from compte where etu = 'ETU1388'),
-   5, 'Molleton épais, parfait pour les sorties du matin.',
-   now() - interval '15 days');
+  ('ADMIN', 'ITU Motor Society', 'Bureau', 'Bureau', '+261 34 00 000 00',
+   crypt('itu2026', gen_salt('bf', 10)), 'ADMIN');

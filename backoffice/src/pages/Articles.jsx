@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { api, urlImage } from '../lib/api';
 import { useAction, useForm, useResource } from '../lib/useResource';
 import { filtrer, useFiltres, usePagination } from '../lib/liste';
 import { formatAriary } from '../lib/format';
@@ -153,7 +153,7 @@ export default function Articles() {
                         <td>
                           <span className="vignette">
                             {article.image
-                              ? <img src={`/images/${article.image}`} alt="" />
+                              ? <img src={urlImage(article.image)} alt="" />
                               : <span className="vignette__vide" />}
                           </span>
                         </td>

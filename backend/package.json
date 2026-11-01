@@ -7,14 +7,18 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "dev:worker": "wrangler dev",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
-    "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.2",
+    "jose": "^5.9.6",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
   }
 }

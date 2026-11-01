@@ -1,26 +1,26 @@
-import crypto from 'node:crypto';
+// Les mots de passe sont haches PAR LA BASE, en bcrypt (pgcrypto), et non ici.
+// Deux raisons :
+//
+//   . l'API tourne en ligne sur un Worker Cloudflare, qui plafonne le temps
+//     processeur a 10 ms par requete. Un scrypt ou un bcrypt calcule dans le
+//     Worker serait tue en vol, alors qu'attendre la base ne consomme aucun
+//     processeur — l'attente d'une entree-sortie n'est pas comptee ;
+//   . la comparaison se fait dans la clause where, en C, a temps constant :
+//     aucune empreinte ne remonte dans le code applicatif.
+//
+// Le mot de passe en clair ne voyage que comme parametre de requete, jamais
+// concatene dans le texte SQL.
+const COUT = 10;
 
-// scrypt de la bibliotheque standard : pas de dependance native a compiler,
-// et un cout de calcul parametre. Le sel est tire par mot de passe et voyage
-// avec l'empreinte.
-const PARAMS = { N: 16384, r: 8, p: 1 };
-const LONGUEUR = 32;
-
-export function empreinte(motDePasse) {
-  const sel = crypto.randomBytes(16);
-  const cle = crypto.scryptSync(motDePasse, sel, LONGUEUR, PARAMS);
-  return `scrypt$${sel.toString('hex')}$${cle.toString('hex')}`;
+// A inserer dans un INSERT ou un UPDATE, a la place de la valeur.
+export function hacher(parametre) {
+  return `crypt(${parametre}, gen_salt('bf', ${COUT}))`;
 }
 
-export function verifier(motDePasse, stocke) {
-  if (!stocke) return false;
-  const [schema, selHex, cleHex] = String(stocke).split('$');
-  if (schema !== 'scrypt' || !selHex || !cleHex) return false;
-  const attendue = Buffer.from(cleHex, 'hex');
-  const calculee = crypto.scryptSync(motDePasse, Buffer.from(selHex, 'hex'), attendue.length, PARAMS);
-  // Comparaison a temps constant : une comparaison ordinaire revele la
-  // longueur du prefixe correct.
-  return crypto.timingSafeEqual(attendue, calculee);
+// A inserer dans un WHERE. Le sel et le cout voyagent avec l'empreinte : la
+// repasser en second argument de crypt suffit a la rejouer.
+export function verifie(colonne, parametre) {
+  return `${colonne} = crypt(${parametre}, ${colonne})`;
 }
 
 // Mot de passe provisoire d'un compte ouvert par le bureau : rendu UNE fois
@@ -29,7 +29,9 @@ export function verifier(motDePasse, stocke) {
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
 
 export function motDePasseProvisoire(longueur = 10) {
-  const octets = crypto.randomBytes(longueur);
+  // Web Crypto et non node:crypto : c'est le seul tirage aleatoire disponible
+  // a l'identique sous node et dans un Worker.
+  const octets = crypto.getRandomValues(new Uint8Array(longueur));
   let sortie = '';
   for (let index = 0; index < longueur; index += 1) {
     sortie += ALPHABET[octets[index] % ALPHABET.length];

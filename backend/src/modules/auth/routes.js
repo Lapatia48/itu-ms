@@ -7,12 +7,12 @@ const routes = Router();
 
 routes.post('/connexion', routeAsync(async (requete, reponse) => {
   const compte = await modele.connexion(requete.body.etu, requete.body.motDePasse);
-  reponse.json({ jeton: signer(compte), compte });
+  reponse.json({ jeton: await signer(compte), compte });
 }));
 
 routes.post('/inscription', routeAsync(async (requete, reponse) => {
   const compte = await modele.inscription(requete.body);
-  reponse.status(201).json({ jeton: signer(compte), compte });
+  reponse.status(201).json({ jeton: await signer(compte), compte });
 }));
 
 routes.get('/moi', authentifier, (requete, reponse) => {

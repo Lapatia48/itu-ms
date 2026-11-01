@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, urlImage } from '../lib/api';
 import { useResource } from '../lib/useResource';
 import { usePanier } from '../lib/panier';
 import { formatAriary, formatDate } from '../lib/format';
@@ -53,7 +53,7 @@ export default function Article() {
               <div className="fiche">
                 <div className="fiche__image">
                   {fiche.image
-                    ? <img src={`/images/${fiche.image}`} alt={fiche.nom} />
+                    ? <img src={urlImage(fiche.image)} alt={fiche.nom} />
                     : <span className="fiche__image-vide"><Icon name="vetement" size={72} strokeWidth={1} /></span>}
                 </div>
 

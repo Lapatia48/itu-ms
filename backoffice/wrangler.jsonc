@@ -1,0 +1,28 @@
+// Mise en ligne de la console : des fichiers statiques, sans code serveur.
+//
+// Cloudflare Workers « static assets » plutot que Cloudflare Pages : c'est la
+// voie que Cloudflare recommande desormais pour un nouveau projet, les deux
+// sont gratuites et sans plafond de bande passante, et celle-ci se deploie par
+// la meme commande que l'API — un seul outil a connaitre.
+//
+//   npm run build     en ayant pose VITE_API_URL (voir .env.example)
+//   npm run deploy
+//
+// not_found_handling : une console en React tient toutes ses pages dans
+// index.html. Sans ce reglage, ouvrir /commandes directement — ou rafraichir
+// la page — renverrait un 404 au lieu de l'application.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "itu-ms-console",
+  "compatibility_date": "2026-10-29",
+
+  // Rendus explicites : sans eux, wrangler previent a chaque deploiement qu il
+  // decide pour nous. Les URL de previsualisation sont coupees — une adresse
+  // publique de plus par version, qu aucune origine autorisee ne couvre.
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}

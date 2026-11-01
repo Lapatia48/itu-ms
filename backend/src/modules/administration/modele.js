@@ -1,6 +1,6 @@
 import { ligne, lignes } from '../../db.js';
 import { ErreurMetier } from '../../utils/erreurs.js';
-import { empreinte, motDePasseProvisoire } from '../../utils/motDePasse.js';
+import { hacher, motDePasseProvisoire } from '../../utils/motDePasse.js';
 import * as valider from '../../utils/valider.js';
 
 const CHAMPS = `c.id_compte, c.etu, c.nom, c.prenom, c.promotion, c.telephone, c.profil,
@@ -62,7 +62,7 @@ export async function creer(corps, compte) {
   const provisoire = motDePasseProvisoire();
   const cree = await ligne(
     `insert into compte (etu, nom, prenom, promotion, telephone, mot_de_passe, profil)
-     values ($1, $2, $3, $4, $5, $6, $7)
+     values ($1, $2, $3, $4, $5, ${hacher('$6')}, $7)
      returning id_compte, etu, nom, prenom, promotion, telephone, profil, cree_le`,
     [
       valider.codeReference(corps.etu, { champ: 'Numéro ETU', max: 20 }),
@@ -70,7 +70,7 @@ export async function creer(corps, compte) {
       valider.texte(corps.prenom, { champ: 'Prénom', requis: true, max: 60 }),
       valider.texte(corps.promotion, { champ: 'Promotion', requis: true, max: 60 }),
       valider.telephone(corps.telephone),
-      empreinte(provisoire),
+      provisoire,
       profil,
     ]
   );
@@ -113,7 +113,10 @@ export async function reinitialiserMotDePasse(idCompte, compte) {
     throw new ErreurMetier('Compte introuvable.', 404);
   }
   const provisoire = motDePasseProvisoire();
-  await ligne('update compte set mot_de_passe = $2 where id_compte = $1', [idCompte, empreinte(provisoire)]);
+  await ligne(
+    `update compte set mot_de_passe = ${hacher('$2')} where id_compte = $1`,
+    [idCompte, provisoire]
+  );
   return { motDePasseProvisoire: provisoire };
 }
 
@@ -156,6 +159,45 @@ export function corbeille() {
        left join compte a on a.id_compte = c.supprime_par
       order by c.supprime_le desc nulls last`
   );
+}
+
+/* ---------------- Remise a zero ---------------- */
+
+// « Repartir sur une application vierge » : categories, articles, commandes,
+// encaissements, avis et comptes s'en vont, le compte qui le demande reste.
+// Restent aussi le parametrage, les tailles et le cycle de vie — ce ne sont pas
+// des donnees saisies, c'est le mode d'emploi de la base.
+//
+// L'effacement est en base (fn_reinitialiser) et pas ici : l'ordre des
+// suppressions y est impose par les declencheurs, et c'est par la meme fonction
+// que passe sql/jeu_demonstration.sql. Un seul endroit decrit donc ce que
+// « vierge » veut dire.
+//
+// Seule operation du projet qui efface vraiment des lignes : partout ailleurs
+// la suppression est logique et la corbeille rattrape. D'ou un mot a recopier
+// plutot qu'un « etes-vous sur ? », et le decompte de ce qui est parti rendu en
+// reponse — c'est irreversible, autant que ce soit dit apres comme avant.
+const CONFIRMATION = 'REINITIALISER';
+
+export async function reinitialiser(compte, corps) {
+  const saisie = String(corps?.confirmation ?? '').trim().toUpperCase();
+  if (saisie !== CONFIRMATION) {
+    throw new ErreurMetier(`Tapez « ${CONFIRMATION} » pour confirmer la remise a zero.`, 400);
+  }
+
+  // Compte avant l'effacement : apres, il n'y a plus rien a compter.
+  const efface = await ligne(
+    `select (select count(*) from categorie)::int                     as categories,
+            (select count(*) from produit)::int                       as articles,
+            (select count(*) from commande)::int                      as commandes,
+            (select count(*) from paiement)::int                      as encaissements,
+            (select count(*) from avis)::int                          as avis,
+            (select count(*) from compte where id_compte <> $1)::int   as comptes`,
+    [compte.id_compte]
+  );
+
+  await ligne('select fn_reinitialiser($1)', [compte.id_compte]);
+  return { reinitialise: true, efface };
 }
 
 /* ---------------- Parametres ---------------- */
